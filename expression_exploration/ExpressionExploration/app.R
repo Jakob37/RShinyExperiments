@@ -1,6 +1,9 @@
 library(shiny)
 library(tidyverse)
 
+source("~/src/JupyterRReuse/MultivarVis.R")
+source("~/src/JupyterRReuse/EvalVis.R")
+
 ddf <- read_tsv("data/bull_design.tsv")
 rdf <- read_tsv("data/bull_data.tsv")
 sdf <- rdf[, ddf$sample]
@@ -14,7 +17,7 @@ non_sample_head <- colnames(rdf)[which(!colnames(rdf) %in% ddf$sample)]
 print(non_sample_head)
 
 # feature_col <- rdf[, "Feature"]
-cond_col <- colnames(ddf)[2:ncol(ddf)]
+cond_col <- colnames(ddf)
 
 ui <- fluidPage(
   titlePanel("Dynamic plot explorations"),
@@ -25,7 +28,7 @@ ui <- fluidPage(
       wellPanel(
         selectInput("plot_type", 
                     "Plot type:", 
-                    c("Bars", "Scatter")),
+                    c("pca", "dendogram", "bars")),
         selectInput("feature_col", 
                     "Feature column:", 
                     non_sample_head)
@@ -44,16 +47,19 @@ ui <- fluidPage(
 server <- function(input, output) {
   
   output$plot <- renderUI({
-
+    
     if (is.null(input$plot_type))  {
       return();
     }
-
-    if (input$plot_type == "Bars") {
-      plotOutput("barchart")
+    
+    if (input$plot_type == "pca") {
+      plotOutput("pca")
     }
-    else if (input$plot_type == "Scatter") {
-      plotOutput("scatter")
+    else if (input$plot_type == "bars") {
+      plotOutput("bars")
+    }
+    else if (input$plot_type == "dendogram") {
+      plotOutput("dendogram")
     }
   })
   
@@ -63,55 +69,78 @@ server <- function(input, output) {
       return();
     }
     
-    if (input$plot_type == "Bars") {
-      
+    if (input$plot_type == "pca") {
+      fluidRow(
+        column(12,
+               selectInput(
+                 inputId="color_factor",
+                 label="Color factor:",
+                 choices=cond_col,
+                 selected=cond_col[1]
+               )
+        ),
+        column(12,
+               numericInput(
+                 inputId="pc1",
+                 label="PC1:",
+                 min=1,
+                 max=10,
+                 value=1,
+                 step=1
+               )
+        ),
+        column(12,
+               numericInput(
+                 inputId="pc2",
+                 label="PC2:",
+                 min=1,
+                 max=10,
+                 value=2,
+                 step=1
+               )
+        )
+      )
+    }
+    else if (input$plot_type == "dendogram") {
       fluidRow(column(12,
-                      
                       selectInput(
-                        inputId="levels",
-                        label="Level factor:",
+                        inputId="color_factor",
+                        label="Color factor:",
                         choices=cond_col,
-                        selected = cond_col[1]
+                        selected=cond_col[1]
                       )
       ))
     }
-    else if (input$plot_type == "Scatter") {
-      
+    else if (input$plot_type == "bars") {
       fluidRow(column(12,
-                      
                       selectInput(
-                        inputId="rowid",
-                        label="Row number:",
-                        choices=feature_col,
-                        selected = feature_col[1]
+                        inputId="color_factor",
+                        label="Color factor:",
+                        choices=cond_col,
+                        selected=cond_col[1]
                       ),
-                      selectInput(
-                        inputId="levels",
-                        label="Level factor:",
-                        choices=cond_col,
-                        selected = cond_col[1]
+                      checkboxInput(
+                        inputId="order_factors",
+                        label="Order on factors:",
+                        value=FALSE
                       )
       ))
     }
   })
   
-  output$barchart <- renderPlot({
-    col_sums <- colSums(sdf)
-    plot_df <- data.frame(sample=ddf$sample, amount=col_sums, color=ddf[, input$levels])
-    colnames(plot_df) <- c("sample", "amount", "color")
-    ggplot(plot_df, aes(x=sample, y=amount, fill=color)) + geom_bar(stat="identity")
+  output$bars <- renderPlot({
+    ev$abundance_bars(sdf, color_col=ddf[[input$color_factor]], cond_order = input$order_factors)
   })
   
-  output$scatter <- renderPlot({
+  output$pca <- renderPlot({
     
-    row_nbr <- which(unlist(feature_col) %in% input$rowid)
-    samples <- ddf$sample
-    row <- unlist(rdf[row_nbr, samples])
-    plot_df <- data.frame(x=1:length(row), y=row, color=ddf[, input$levels])
-    colnames(plot_df) <- c("x", "y", "color")
-    ggplot(plot_df, aes(x=x, y=y)) + geom_point(aes(size=2, color=color)) + ggtitle("Expression levels")
-
-  })
+    mv$pca(sdf, unlist(ddf[, input$color_factor]), 
+           ddf$sample, ddf$sample, pc1=input$pc1, pc2=input$pc2, only_text=F)
+  }, width="auto", height="auto")
+  
+  output$dendogram <- renderPlot({
+    mv$dendogram(sdf, ddf$sample, ddf$sample, ddf[[input$color_factor]])
+  }, width="auto", height="auto")
 }
 
 shinyApp(ui = ui, server = server)
