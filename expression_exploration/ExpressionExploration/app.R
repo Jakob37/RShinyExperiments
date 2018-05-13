@@ -1,11 +1,19 @@
 library(shiny)
 library(tidyverse)
 
-ddf <- read_tsv("data/design.tsv")
-rdf <- read_tsv("data/data.tsv")
+ddf <- read_tsv("data/bull_design.tsv")
+rdf <- read_tsv("data/bull_data.tsv")
 sdf <- rdf[, ddf$sample]
 
-feature_col <- rdf[, "Feature"]
+print(colnames(rdf))
+print(ddf$sample)
+print(!which(colnames(rdf) %in% ddf$sample))
+
+non_sample_head <- colnames(rdf)[which(!colnames(rdf) %in% ddf$sample)]
+
+print(non_sample_head)
+
+# feature_col <- rdf[, "Feature"]
 cond_col <- colnames(ddf)[2:ncol(ddf)]
 
 ui <- fluidPage(
@@ -15,7 +23,12 @@ ui <- fluidPage(
     
     sidebarPanel(
       wellPanel(
-        selectInput("plot_type", "Plot type:", c("Bars", "Scatter"))
+        selectInput("plot_type", 
+                    "Plot type:", 
+                    c("Bars", "Scatter")),
+        selectInput("feature_col", 
+                    "Feature column:", 
+                    non_sample_head)
       ),
       wellPanel(
         uiOutput("ui")
@@ -32,7 +45,6 @@ server <- function(input, output) {
   
   output$plot <- renderUI({
 
-    # plotOutput("barchart")
     if (is.null(input$plot_type))  {
       return();
     }
@@ -43,8 +55,6 @@ server <- function(input, output) {
     else if (input$plot_type == "Scatter") {
       plotOutput("scatter")
     }
-
-
   })
   
   output$ui <- renderUI({
